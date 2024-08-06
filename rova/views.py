@@ -1,16 +1,20 @@
-from rest_framework import generics, status
+from rest_framework import generics, status, serializers
+from rest_framework.authentication import SessionAuthentication, BasicAuthentication
+from rest_framework.generics import ListAPIView
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.contrib.auth import login, logout as auth_logout, authenticate, get_user_model
 from django.middleware.csrf import get_token
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_protect
+from django.core.exceptions import PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from .models import CustomUser
-from .serializers import UserSerializer, ProfileSerializer
+from .models import CustomUser, Volunteer
+from .serializers import UserSerializer, UserUpdateSerializer, VolunteerSerializer, UserProfileSerializer
 from django.utils.decorators import method_decorator
 import logging
-from rest_framework import serializers,status
 
 logger = logging.getLogger(__name__)
 
@@ -76,16 +80,23 @@ class LogoutView(generics.GenericAPIView):
 
 
 class UserProfileView(APIView):
-    permission_classes = (IsAuthenticated,)
-
+    authentication_classes = [SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAuthenticated]
+   
     def get(self, request):
-        serializer = UserSerializer(request.user)
+        serializer = UserProfileSerializer(request.user)
         return Response(serializer.data)
+    
+class UserListView(ListAPIView):
+    queryset = CustomUser.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [IsAdminUser]   
     
 class ProfileUpdateView(generics.UpdateAPIView):
     queryset = CustomUser.objects.all()
-    serializer_class = ProfileSerializer
+    serializer_class = UserUpdateSerializer
     permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser)
 
     def get_object(self):
         return self.request.user    
@@ -107,3 +118,38 @@ class CsrfTokenView(APIView):
     def get(self, request, *args, **kwargs):
         csrf_token = get_token(request)
         return Response({'csrfToken': csrf_token})
+    
+class VolunteerCreateView(generics.CreateAPIView):
+    queryset = Volunteer.objects.all()
+    serializer_class = VolunteerSerializer
+    permission_classes = [IsAuthenticated]  # Only authenticated users can create
+
+    def perform_create(self, serializer):
+        # Link the volunteer to the authenticated user
+        serializer.save(user=self.request.user)
+
+class VolunteerListView(generics.ListAPIView):
+    queryset = Volunteer.objects.all()
+    serializer_class = VolunteerSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        # Optionally filter based on user if needed
+        return Volunteer.objects.all()
+
+class VolunteerDetailView(generics.RetrieveUpdateAPIView):
+    queryset = Volunteer.objects.all()
+    serializer_class = VolunteerSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        return Volunteer.objects.filter(user=user)
+
+    def perform_update(self, serializer):
+        serializer.context['request'] = self.request
+        serializer.save()
+    
+
+
+   

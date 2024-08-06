@@ -43,7 +43,7 @@ MIDDLEWARE = [
 
 AUTHENTICATION_BACKENDS = [
     'rova.backends.EmailBackend',
-    # 'django.contrib.auth.backends.ModelBackend',
+    'django.contrib.auth.backends.ModelBackend',
 ]
 
 AUTH_USER_MODEL = 'rova.CustomUser'
@@ -61,7 +61,7 @@ CSRF_COOKIE_HTTPONLY = False
 
 # CORS settings
 CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',  
+    'http://localhost:3000',
 ]
 CORS_ALLOW_CREDENTIALS = True
 
