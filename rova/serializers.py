@@ -47,27 +47,42 @@ class UserProfileSerializer(serializers.ModelSerializer):
 class UserUpdateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, allow_blank=True)
     profile_image = serializers.ImageField(required=False, allow_null=True)
+    remove_profile_image = serializers.BooleanField(write_only=True, required=False, default=False)
+    name = serializers.CharField(required=False, allow_blank=True)
+    username = serializers.CharField(required=False, allow_blank=True)
+    email = serializers.EmailField(required=False)
 
     class Meta:
         model = CustomUser
-        fields = ('name', 'username', 'email', 'password', 'profile_image')
+        fields = ('name', 'username', 'email', 'password', 'profile_image', 'remove_profile_image')
+
+    def validate_username(self, value):
+        user = CustomUser.objects.filter(username=value).exclude(id=self.instance.id).first()
+        if user:
+            raise serializers.ValidationError("This username is already taken.")
+        return value
+
+    def validate_email(self, value):
+        user = CustomUser.objects.filter(email=value).exclude(id=self.instance.id).first()
+        if user:
+            raise serializers.ValidationError("This email is already registered.")
+        return value
 
     def update(self, instance, validated_data):
+        if validated_data.get('remove_profile_image'):
+            instance.profile_image.delete(save=False)
+            validated_data.pop('profile_image', None)
+            validated_data.pop('remove_profile_image')
+
         password = validated_data.pop('password', None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
+        
         if password:
             instance.set_password(password)
+        
         instance.save()
         return instance
-
-    def validate(self, data):
-        # Ensure that username and email validations are only done if they are being updated
-        if 'username' in data and CustomUser.objects.filter(username=data['username']).exclude(pk=self.instance.pk).exists():
-            raise serializers.ValidationError({"username": "A user with this username already exists."})
-        if 'email' in data and CustomUser.objects.filter(email=data['email']).exclude(pk=self.instance.pk).exists():
-            raise serializers.ValidationError({"email": "A user with this email already exists."})
-        return data
 
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()

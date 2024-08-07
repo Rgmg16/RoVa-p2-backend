@@ -91,16 +91,30 @@ class UserListView(ListAPIView):
     queryset = CustomUser.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAdminUser]   
-    
+
 class ProfileUpdateView(generics.UpdateAPIView):
-    queryset = CustomUser.objects.all()
     serializer_class = UserUpdateSerializer
     permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
 
-    def get_object(self):
-        return self.request.user    
+    def get_queryset(self):
+        return CustomUser.objects.filter(id=self.request.user.id)
 
+    def get_object(self):
+        return self.request.user
+
+    def perform_update(self, serializer):
+        serializer.context['request'] = self.request
+        serializer.save()
+
+    def patch(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        logger.info(f"Update request data: {request.data}")
+        response = super().update(request, *args, **kwargs)
+        logger.info(f"Response data: {response.data}")
+        return response
 
 class AuthStatusView(generics.GenericAPIView):
     permission_classes = [AllowAny]
